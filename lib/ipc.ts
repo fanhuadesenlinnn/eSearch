@@ -153,6 +153,7 @@ type Message = {
     clearCache: () => void;
     move_user_data: (target: string) => void;
     getAutoStart: () => boolean;
+    dockVisibility: (visible: boolean) => void;
     setAutoStart: (value: boolean) => void;
     theme: (t: NativeTheme["themeSource"]) => void;
     dingIgnore: (ignore: boolean) => void;

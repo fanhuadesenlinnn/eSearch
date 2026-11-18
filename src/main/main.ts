@@ -71,6 +71,8 @@ import defaultSetting, { matchBestLan } from "./defaultSetting";
 const runPath = join(resolve(__dirname, ""), "../../");
 const tmpDir = join(tmpdir(), "eSearch");
 const clipboardDir = join(tmpDir, "clipboard");
+const isMac = process.platform === "darwin";
+const macTrayGuid = "88e1cac1-ee95-4507-9122-bf451236a0e1";
 
 /** minimist 解析出的值：参数后没跟值时为 boolean，纯数字会被解析为 number */
 type Argv = Record<string, string | number | boolean | string[] | undefined> & {
@@ -738,11 +740,22 @@ function loadIcon(...paths: string[]) {
     return fallbackIcon;
 }
 
+function loadTrayIcon(path: string) {
+    const image = loadIcon(join(runPath, path));
+    if (!isMac || image.getSize().width === 16) return image;
+    const icon = image.resize({ width: 16, quality: "best" });
+    icon.addRepresentation({
+        scaleFactor: 2,
+        buffer: image.resize({ width: 32, quality: "best" }).toPNG(),
+    });
+    return icon;
+}
+
 const trayIcons = {
-    macTem: loadIcon(join(runPath, "assets/logo/bw/macIconTemplate.png")),
-    color: loadIcon(join(runPath, "assets/logo/32x32.png")),
-    white: loadIcon(join(runPath, "assets/logo/bw/32x32_white.png")),
-    black: loadIcon(join(runPath, "assets/logo/bw/32x32_black.png")),
+    macTemplate: loadTrayIcon("assets/logo/bw/macIconTemplate.png"),
+    color: loadTrayIcon("assets/logo/32x32.png"),
+    white: loadTrayIcon("assets/logo/bw/32x32_white.png"),
+    black: loadTrayIcon("assets/logo/bw/32x32_black.png"),
 };
 const notifyIcon = loadIcon(join(runPath, "assets/logo/64x64.png"));
 
@@ -793,16 +806,19 @@ app.whenReady().then(() => {
 
     // 初始化语言
     lan(store.get("语言.语言") || "");
+    setDockVisibility(store.get("在程序坞中显示"));
 
     argRun(process.argv, true).catch((err) => {
         console.error(`命令行执行失败: ${err?.stack ?? err}`);
         process.exitCode = 1;
     });
 
-    if (store.get("托盘") !== "无") {
+    nativeTheme.themeSource = store.get("全局.深色模式");
+    const trayIcon = getTrayIcon();
+    if (trayIcon) {
         // 托盘
         try {
-            tray = new Tray(trayIcons.color);
+            tray = new Tray(trayIcon, isMac ? macTrayGuid : undefined);
         } catch (e) {
             console.error(`托盘创建失败：${e}`);
         }
@@ -996,7 +1012,8 @@ app.whenReady().then(() => {
         ]);
         tray?.setToolTip(app.getName());
         if (store.get("点击托盘自动截图")) {
-            tray?.on("click", () => {
+            tray?.on("click", (event) => {
+                if (isMac && event.metaKey) return;
                 showPhoto();
             });
             tray?.on("right-click", () => {
@@ -1050,45 +1067,35 @@ app.whenReady().then(() => {
         new BrowserWindow({ show: false });
     }
 
-    nativeTheme.themeSource = store.get("全局.深色模式");
-
     // 菜单栏设置
     setMenu();
-
-    setTray();
 });
 
-function setTray() {
-    if (!tray) return;
-    const setImage = (image: NativeImage | null) => {
-        if (image) tray?.setImage(image);
-    };
-    const i = store.get("托盘");
-    if (i === "彩色") {
-        setImage(trayIcons.color);
-    }
-    if (i === "白") {
-        setImage(trayIcons.white);
-    }
-    if (i === "黑") {
-        setImage(trayIcons.black);
-    }
-    if (i === "跟随系统" || i === "跟随系统反") {
-        if (isMac) setImage(trayIcons.macTem);
-    }
-    if (i === "跟随系统") {
-        setImage(
-            nativeTheme.shouldUseDarkColors ? trayIcons.black : trayIcons.white,
-        );
-    }
-    if (i === "跟随系统反") {
-        setImage(
-            nativeTheme.shouldUseDarkColors ? trayIcons.white : trayIcons.black,
-        );
+function getTrayIcon() {
+    switch (store.get("托盘")) {
+        case "无":
+            return undefined;
+        case "白":
+            return trayIcons.white;
+        case "黑":
+            return trayIcons.black;
+        case "跟随系统":
+            if (isMac) return trayIcons.macTemplate;
+            return nativeTheme.shouldUseDarkColors
+                ? trayIcons.black
+                : trayIcons.white;
+        case "跟随系统反":
+            return nativeTheme.shouldUseDarkColors
+                ? trayIcons.white
+                : trayIcons.black;
+        default:
+            return trayIcons.color;
     }
 }
 
-const isMac = process.platform === "darwin";
+function setDockVisibility(visible: boolean) {
+    if (isMac) app.setActivationPolicy(visible ? "regular" : "accessory");
+}
 
 function setMenu() {
     const menuTemplate = [
@@ -2147,6 +2154,9 @@ mainOn("setAutoStart", ([arg1]) => {
 mainOn("theme", ([arg1]) => {
     nativeTheme.themeSource = arg1;
     store.set("全局.深色模式", arg1);
+});
+mainOn("dockVisibility", ([visible]) => {
+    setDockVisibility(visible);
 });
 
 mainOn("hotkey", ([type, name, key]) => {
@@ -3309,7 +3319,8 @@ mainOn("getLogs", () => {
 });
 
 nativeTheme.on("updated", () => {
-    setTray();
+    const icon = getTrayIcon();
+    if (icon) tray?.setImage(icon);
 });
 
 function fixSettingTree() {

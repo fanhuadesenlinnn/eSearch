@@ -6,6 +6,7 @@ export interface setting {
     dev: boolean;
     语言: { 语言?: string };
     托盘: "无" | "彩色" | "黑" | "白" | "跟随系统" | "跟随系统反";
+    在程序坞中显示: boolean;
     保留截屏窗口: boolean;
     快捷键: {
         自动识别: { key?: string };

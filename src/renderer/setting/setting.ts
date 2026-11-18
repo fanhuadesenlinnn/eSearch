@@ -1541,6 +1541,14 @@ const s: Partial<settingItem<SettingPath>> = {
         desc: "将通过系统通知提示启动",
         el: () => xSwitch(),
     },
+    ...(process.platform === "darwin"
+        ? {
+              在程序坞中显示: {
+                  name: "在程序坞中显示",
+                  el: () => xSwitch(),
+              },
+          }
+        : {}),
     托盘: {
         name: "托盘",
         el: (v) => {
@@ -2595,7 +2603,16 @@ const main: {
     {
         pageName: "全局",
         items: [
-            { title: "启动", settings: ["_autostart", "启动提示"] },
+            {
+                title: "启动",
+                settings: [
+                    "_autostart",
+                    "启动提示",
+                    ...(process.platform === "darwin"
+                        ? (["在程序坞中显示"] as const)
+                        : []),
+                ],
+            },
             { title: "语言", settings: ["语言.语言"] },
             { title: "托盘", settings: ["托盘"] },
             {
@@ -2731,6 +2748,7 @@ const bindF: { [k in SettingPath]?: (v: GetValue<setting, k>) => void } = {
         });
     },
     "全局.深色模式": (v) => renderSend("theme", [v]),
+    在程序坞中显示: (v) => renderSend("dockVisibility", [v]),
     "全局.模糊": (v) => setProperty("--blur", `blur(${v}px)`),
     "全局.不透明度": (v) => setProperty("--alpha", String(v)),
     "字体.主要字体": (v) => setProperty("--main-font", v),

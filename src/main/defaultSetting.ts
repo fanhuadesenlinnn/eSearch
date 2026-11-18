@@ -14,6 +14,7 @@ const defaultSetting: setting = {
     保留截屏窗口: true,
     语言: { 语言: matchBestLan() },
     托盘: "彩色",
+    在程序坞中显示: true,
     快捷键: {
         自动识别: {
             key: "Alt+V",
